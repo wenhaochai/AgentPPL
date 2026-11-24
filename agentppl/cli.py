@@ -49,9 +49,9 @@ def forward(model, tp, prompts, dtype="bfloat16", batch=64):
     kw = dict(model=model, tokenizer=model, tensor_parallel_size=tp, dtype=dtype,
               max_model_len=max(len(p) for p in prompts) + 8, enable_prefix_caching=False,
               max_num_seqs=16, gpu_memory_utilization=0.88)
-    try:
-        from transformers import AutoConfig
-        arch = (getattr(AutoConfig.from_pretrained(model), "architectures", None) or [""])[0]
+    try:   # the raw config.json, as AutoConfig cannot parse every new architecture
+        from transformers.utils import cached_file
+        arch = (json.load(open(cached_file(model, "config.json"))).get("architectures") or [""])[0]
     except Exception:
         arch = ""
     if "ConditionalGeneration" in arch:   # text only: no multimodal profiling
