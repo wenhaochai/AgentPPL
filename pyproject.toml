@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentppl"
+version = "0.1.0"
+description = "Predict an LLM's Terminal-Bench 2.1 rank from one forward pass over fixed agent trajectories"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = ["numpy", "transformers", "jinja2"]
+
+[project.optional-dependencies]
+gpu = ["vllm"]
+
+[project.scripts]
+agentppl = "agentppl.cli:main"
+
+[tool.setuptools]
+packages = ["agentppl"]
