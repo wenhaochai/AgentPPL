@@ -7,10 +7,12 @@ is mapped to a model's rendering by (non-markup span, offset in it). A range out
 
 Rows of a range: the model's tokens that start inside the span holding the range and overlap the range.
 
-AgentPPL (one model, one pick set): per range, bits = (sum of the rows' bits) * (range bytes / the rows' bytes), so a
-token that sticks out of the range counts only for its share; the value is the arithmetic mean over ranges of the
-probability 2^-bits. Ranges with no scored row are left out (a doc's first token has no loss). Higher = predicted
-higher TB2.1.
+Combines (each pick set names its own; higher = predicted higher TB2.1; ranges with no scored row are left out, as a
+doc's first token has no loss):
+  capped_bits  (the default set's) minus the mean over ranges of min(2, sum over the range's rows of min(2, bits)):
+               a confidently wrong token costs at most 2 bits.
+  prob_mean    the arithmetic mean over ranges of the probability 2^-bits, bits = (sum of the rows' bits) * (range
+               bytes / the rows' bytes), so a token that sticks out of the range counts only for its share.
 
 Plain PPL: bits per byte over all tokens of the model's rendering (template markup included), tokens with a loss only.
 Lower = lower loss.
@@ -81,6 +83,19 @@ def range_rows(canon_spans, model_spans, ranges, start, end):
     return kept, first + np.arange(int(n.sum())), rid
 
 
+CAP = 2.0
+
+
+def capped_bits(bits, rid, n):
+    """Minus the mean over ranges of min(CAP, sum of min(CAP, row bits)). Returns (value, ranges with a scored row)."""
+    ok = ~np.isnan(bits)
+    has = np.bincount(rid[ok], minlength=n) > 0
+    if not has.any():
+        return float("nan"), 0
+    tot = np.bincount(rid[ok], weights=np.minimum(np.asarray(bits, np.float64)[ok], CAP), minlength=n)
+    return -float(np.minimum(tot[has], CAP).mean()), int(has.sum())
+
+
 def agentppl(bits, nbytes, rid, range_bytes):
     """Arithmetic mean over ranges of 2^-(range bits), range bits = sum of row bits * range bytes / row bytes.
     Returns (value, number of ranges with a scored row)."""
@@ -114,15 +129,20 @@ def gather(docs, picks, model):
     return out, (np.concatenate(rbytes) if rbytes else np.zeros(0, np.int64)), dropped
 
 
-def agentppl_of(docs, picks, model, bits):
+def agentppl_of(docs, picks, model, bits, combine="prob_mean"):
     """AgentPPL of one model and pick set. bits: {doc id: float array per token}. Returns a dict."""
     doc_rows, rbytes, dropped = gather(docs, picks, model)
     b = [np.asarray(bits[i], np.float64)[rows] for i, rows, _ in doc_rows]
     nb = [(np.asarray(model[i][2])[rows] - np.asarray(model[i][1])[rows]) for i, rows, _ in doc_rows]
     rid = [r for _, _, r in doc_rows]
     cat = lambda xs, dt: np.concatenate(xs).astype(dt) if xs else np.zeros(0, dt)
-    v, n = agentppl(cat(b, np.float64), cat(nb, np.float64), cat(rid, np.int64), rbytes)
-    return {"agentppl": v, "n_ranges": n, "n_ranges_in_set": int(len(rbytes) + dropped)}
+    if combine == "capped_bits":
+        v, n = capped_bits(cat(b, np.float64), cat(rid, np.int64), len(rbytes))
+    elif combine == "prob_mean":
+        v, n = agentppl(cat(b, np.float64), cat(nb, np.float64), cat(rid, np.int64), rbytes)
+    else:
+        raise ValueError(f"unknown combine {combine!r}")
+    return {"agentppl": v, "combine": combine, "n_ranges": n, "n_ranges_in_set": int(len(rbytes) + dropped)}
 
 
 def plain_ppl(docs, model, bits):

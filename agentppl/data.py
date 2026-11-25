@@ -4,8 +4,8 @@
                           id (content hash), split (dev | heldout), source, source_revision, source_ref, licence,
                           task_id, teacher, n_turns, messages [{role, content, parts [[type, turn, c0, c1]]}],
                           text + spans [[b0, b1, type, turn]] (the canonical rendering, Flint's chat template)
-  picks/<name>.json       a pick set: {name, splits, evaluator, program_sha256, description, ranges {doc id: [[b0, b1]]}}
-                          (bytes of the doc's canonical text)
+  picks/<name>.json       a pick set: {name, default, combine, splits, evaluator, program_sha256, description,
+                          ranges {doc id: [[b0, b1]]}} (bytes of the doc's canonical text; every split's docs)
   scores_<split>.json     {"benchmark", "models": {hf repo: {"R": score, "N": score or null}}}
   MANIFEST.json           files, sizes, SHA-256, counts
 """
@@ -14,6 +14,7 @@ import glob, json, os
 from .measure import read_jsonl
 
 SPLITS = ("dev", "heldout")
+DEFAULT_PICKS = "obsgain-easy"   # the owner's choice (2026-11-24), after the held-out test
 
 
 def default_dir():
@@ -35,7 +36,7 @@ def pick_sets(data_dir, names=None):
             out[s["name"]] = s
     if names is not None and set(names) - set(out):
         raise SystemExit(f"unknown pick set(s) {sorted(set(names) - set(out))}; have {sorted(pick_sets(data_dir))}")
-    return out
+    return dict(sorted(out.items(), key=lambda kv: (kv[0] != DEFAULT_PICKS, kv[0])))   # the default first
 
 
 def load_scores(path):

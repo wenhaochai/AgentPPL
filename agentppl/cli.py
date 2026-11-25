@@ -2,8 +2,9 @@
 agentppl report RESULT.json ... [--scores FILE]
 
 score: renders every trajectory of the split with the model's chat template, runs one vLLM forward pass (prompt
-log-probs only, no generation), and writes {model, splits: {split: {n_docs, plain_ppl, picks: {name: {agentppl,
-n_ranges}}}}} as JSON. report: a table of results, and with --scores the Spearman rho of AgentPPL and of minus plain
+log-probs only, no generation), and writes {model, splits: {split: {n_docs, picks_name, agentppl, n_ranges, plain_ppl,
+picks: {name: {agentppl, combine, n_ranges}}}}} as JSON; agentppl and n_ranges are the default pick set's.
+report: a table of results, and with --scores the Spearman rho of AgentPPL and of minus plain
 PPL against the scores (R and N).
 """
 import argparse, json, math, os, sys, time
@@ -11,7 +12,7 @@ import argparse, json, math, os, sys, time
 import numpy as np
 
 from . import __version__
-from .data import SPLITS, default_dir, load_scores, pick_sets, trajectories
+from .data import DEFAULT_PICKS, SPLITS, default_dir, load_scores, pick_sets, trajectories
 from .measure import agentppl_of, plain_ppl, same_spans, spearman, token_bytes
 
 LN2 = math.log(2.0)
@@ -111,11 +112,11 @@ def score(a):
         ds = [d for d in docs if d["split"] == sp]
         if not ds:
             continue
-        r = {"n_docs": len(ds), "plain_ppl": plain_ppl(ds, model, bits), "picks": {}}
-        for name, ps in sets.items():
-            if sp in ps["splits"]:
-                r["picks"][name] = agentppl_of(ds, ps["ranges"], model, bits)
-        res["splits"][sp] = r
+        picks = {name: agentppl_of(ds, ps["ranges"], model, bits, ps["combine"]) for name, ps in sets.items() if sp in ps["splits"]}
+        first = next(iter(picks), None)   # the default set, or the one asked for
+        res["splits"][sp] = {"n_docs": len(ds), "picks_name": first, "agentppl": picks[first]["agentppl"] if first else None,
+                             "n_ranges": picks[first]["n_ranges"] if first else 0, "plain_ppl": plain_ppl(ds, model, bits),
+                             "picks": picks}
     txt = json.dumps(res, indent=1)
     if a.out:
         open(a.out, "w").write(txt + "\n")
@@ -131,7 +132,7 @@ def report(a):
         rows = [(r["model"], r["splits"][sp]) for r in res if sp in r.get("splits", {})]
         if not rows:
             continue
-        names = sorted({n for _, s in rows for n in s["picks"]})
+        names = sorted({n for _, s in rows for n in s["picks"]}, key=lambda n: (n != DEFAULT_PICKS, n))
         print(f"\n== {sp} ({len(rows)} models)")
         print("\t".join(["model", "plain_ppl"] + names + (["R", "N"] if scores else [])))
         for m, s in sorted(rows):
@@ -163,7 +164,7 @@ def main(argv=None):
     s.add_argument("--model", required=True, help="Hugging Face repo id or local path")
     s.add_argument("--tp", type=int, default=1, help="tensor parallel size")
     s.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
-    s.add_argument("--picks", default=None, help="one pick set (default: every pick set in the release)")
+    s.add_argument("--picks", default=None, help=f"one pick set (default: every set, {DEFAULT_PICKS} first)")
     s.add_argument("--dtype", default="bfloat16")
     s.add_argument("--data", default=None, help="release dir (default $AGENTPPL_DATA or <repo>/release)")
     s.add_argument("--out", default=None, help="also write the JSON here")

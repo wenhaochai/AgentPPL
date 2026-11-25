@@ -3,128 +3,137 @@
 AgentPPL predicts how an LLM ranks on Terminal-Bench 2.1 from one forward pass over fixed public agent trajectories.
 It needs only the scored model: no generation, no sandbox, no judge.
 
-**Status: private, dev results only.** The pick set to ship is not chosen yet. The held-out test (new trajectories, new
-models) is pending; its numbers go in the table below when it is done.
+On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgentPPL ranks the models with
+Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50.
+
+Dataset: <https://huggingface.co/datasets/wchai/AgentPPL>
 
 ## What it measures
 
-1. **Trajectories.** 1,401 Terminus-2 agent trajectories on terminal tasks (Terminal-Lego-Traj-8k and terminal-wrench,
-   3 teachers per task, tasks that share a 13-gram with a TB2.1 instruction removed). Every trajectory is cut to a fixed
-   message prefix (at most 16k tokens under every tokenizer we checked) and typed by span: task, thought, action (the
-   keystrokes the agent sends), observation (terminal output), markup.
-2. **Render and score.** The scored model renders each trajectory with its own chat template, and vLLM returns the
+1. **Trajectories.** Terminus-2 agent trajectories on terminal tasks from Terminal-Lego-Traj-8k and terminal-wrench,
+   3 teachers per task, with every task that shares a 13-gram with a TB2.1 instruction removed. Two splits:
+   `dev` (1,401 trajectories, the tasks the picks were searched on) and `heldout` (960 trajectories of other tasks).
+   Each trajectory is cut to a fixed message prefix (at most 16k tokens under every tokenizer we checked) and typed by
+   span: task, thought, action (the keystrokes the agent sends), observation (terminal output), markup.
+2. **Render and score.** The scored model renders each trajectory with its own chat template. vLLM returns the
    log-probability of every token (prompt log-probs only).
-3. **Picks.** A pick set is a list of byte ranges in the trajectories. The ranges are precomputed with an evaluator
-   model, Flint (`RecursiveSI/flint`), and shipped as data. All three current sets pick command tokens that Flint
-   predicts much better when it can see the earlier terminal output (the agent reads them off the screen). The ranges are
-   mapped to any model's rendering by (span, offset in span), since every rendering holds the same span texts.
-4. **AgentPPL** of a model on a pick set is the arithmetic mean, over the ranges, of the probability the model gives
-   each range's text:
-
-   p(range) = 2^-bits, with bits = (sum of the bits of the model's tokens covering the range) × (range bytes / bytes of
-   those tokens).
-
-   A token that sticks out of a range counts only for its share, so the value does not depend on the tokenizer.
-   Higher AgentPPL = higher predicted TB2.1 rank.
+3. **Picks.** A pick set is a list of byte ranges in the trajectories. The ranges were computed once with an evaluator
+   model, Flint (`RecursiveSI/flint`), and are shipped as data. The default set, `obsgain-easy`, picks command tokens
+   of turn 1 or later that Flint predicts much better when it can see the earlier terminal output (loss drop > 0.5
+   bits) and that Flint finds easy in full context (< 4 bits): text the agent reads off the screen. The ranges are
+   mapped to any model's rendering by (span, offset in span), because every rendering holds the same span texts.
+4. **AgentPPL** of a model is minus the mean, over the picked ranges, of the model's bits on each range, with each
+   token's bits capped at 2 and each range's sum capped at 2. With the cap, one confidently wrong token costs at most
+   2 bits. Higher AgentPPL = higher predicted TB2.1 rank.
 5. **Plain PPL**, for comparison: bits per byte over all tokens of the model's rendering.
-
-The arithmetic mean of probabilities matters: the mean of bits (the geometric mean of probabilities) on the same picks
-gives dev rho_R +0.64 instead of +0.90, because one confidently wrong token can add 10-40 bits to a mean of bits but
-at most one miss to a mean of probabilities.
 
 ## Results
 
-Spearman rho with Terminal-Bench 2.1 (Artificial Analysis, Terminus 2). R = reasoning-mode score, N = non-reasoning
-score (a model with one AA score has it as both).
+Spearman rho of each measure with Terminal-Bench 2.1, one score per model; positive means the measure orders the
+models the right way. R = reasoning-mode score, N = non-reasoning score (a model with one AA score has it as both).
 
-| measure | bytes used | dev rho_R (25 models) | dev rho_N (20 models) | held-out rho_R | held-out rho_N |
-|---|---|---|---|---|---|
-| AgentPPL, `obsgain-nothought` | 0.73% | +0.903 | +0.938 | _pending_ | _pending_ |
-| AgentPPL, `obsgain-easy` | 0.30% | +0.894 | +0.937 | _pending_ | _pending_ |
-| AgentPPL, `obsgain-taskgain` | 0.51% | +0.897 | +0.947 | _pending_ | _pending_ |
-| plain PPL (minus bits per byte) | 100% | −0.292 | −0.289 | _pending_ | _pending_ |
+| measure | dev trajectories × 25 dev models (R / N) | held-out trajectories × 25 dev models (R / N) | held-out trajectories × 15 held-out models (R / N) |
+|---|---|---|---|
+| **AgentPPL** (`obsgain-easy`, default) | +0.890 / +0.920 | +0.854 / +0.876 | **+0.788 / +0.733** |
+| plain PPL (minus bits per byte) | −0.29 / −0.29 | −0.288 / −0.289 | −0.495 / −0.883 |
 
-- "bytes used" is the share of all bytes of the canonical rendering (31.65 M bytes); every picked byte is in a command.
-- **The dev numbers are optimistic.** The pick rules were found by agents that saw the dev rho of these 25 models on
-  these 1,401 trajectories. Only the held-out columns test the method.
-- Dev models: 2-14B and 59-128B open instruct models (`release/scores_dev.json`). Numbers from `tests/test_dev_values.py
-  --dumps-only`.
+- The held-out models are 15 open instruct models of 21-37B total parameters. The 25 dev models are 2-14B and 59-128B,
+  so the held-out band is new to the search, and its narrow size range leaves model size little of the ranking to
+  explain. Held-out model names, scores and per-model values are not released.
+- On held-out trajectories × held-out models, AgentPPL minus plain PPL is +1.28 in rho_R (paired bootstrap over the
+  models, 10,000 draws, 95% interval [+0.57, +1.79]).
+- **How the default was chosen.** Three agent search runs each froze their best program on dev. All three were
+  measured once, pre-registered, on both held-out cells. `obsgain-easy` (run 05dc517c, program 1152f4c8) was chosen
+  as the default after that test. The other two got rho_R +0.695 (`obsgain-nothought`) and +0.683 (`obsgain-taskgain`,
+  with its own top-20 rank combine) on held-out trajectories × held-out models. So the +0.788 is the best of three on
+  that cell, not a fresh draw.
+- The dev numbers are optimistic: the agents that wrote the pick rules saw the dev rho of the 25 dev models on the dev
+  trajectories.
+
+Extra pick sets (in the release, scored with the probability mean: the arithmetic mean over ranges of 2^-bits, bits
+scaled by range bytes / covering-token bytes):
+
+| set | dev × dev (R / N) | held-out traj. × dev models (R / N) |
+|---|---|---|
+| `obsgain-nothought` (466edc35) | +0.903 / +0.938 | +0.869 / +0.923 |
+| `obsgain-taskgain` (b7f43f6c) | +0.897 / +0.947 | +0.893 / +0.942 |
+
+Their held-out-model numbers with this combine were not measured. `tests/test_dev_values.py --dumps-only` prints all
+dev-model columns.
 
 ## Install and run
 
 ```bash
 pip install -e .[gpu]                 # numpy, transformers, jinja2; vllm for scoring
-python scripts/build_dataset.py --src /path/to/token-ppl --out release   # or point AGENTPPL_DATA at a release dir
+huggingface-cli download wchai/AgentPPL --repo-type dataset --local-dir release   # or AGENTPPL_DATA=DIR
 
-agentppl score --model Qwen/Qwen3.5-4B --tp 1 --split dev --out qwen3.5-4b.json
+agentppl score --model Qwen/Qwen3.5-4B --tp 1 --split heldout --out qwen3.5-4b.json
 agentppl report *.json --scores release/scores_dev.json
 ```
 
-`score` writes, per split, `plain_ppl`, and per pick set `agentppl` and `n_ranges` (ranges with a scored token):
+`score` writes, per split, the default AgentPPL first, then plain PPL and every pick set:
 
 ```json
 {"model": "Qwen/Qwen3.5-4B",
- "splits": {"dev": {"n_docs": 1401, "plain_ppl": 1.6362,
-                    "picks": {"obsgain-nothought": {"agentppl": 0.5990, "n_ranges": 55995, "n_ranges_in_set": 55995}}}},
+ "splits": {"heldout": {"n_docs": 960, "picks_name": "obsgain-easy", "agentppl": -0.7755, "n_ranges": 10568,
+                        "plain_ppl": 1.5233,
+                        "picks": {"obsgain-easy": {"agentppl": -0.7755, "combine": "capped_bits", "n_ranges": 10568},
+                                  "obsgain-nothought": {"agentppl": 0.5850, "combine": "prob_mean", "n_ranges": 28123}}}},
  "docs_with_special_tokens_in_content": 0, "docs_unmatched": 0}
 ```
 
-- `--picks NAME` scores one pick set (default: all). `--split heldout|all` works once held-out trajectories are in the
-  release.
+- `--split dev|heldout|all`. `--picks NAME` scores one pick set.
 - `docs_with_special_tokens_in_content`: trajectories where the model's tokenizer turns a content string (for example
   `<image>` in a terminal output) into a control token. `docs_unmatched`: renderings whose spans differ from the
   canonical ones (their ranges get no tokens). Both should be 0.
-- One pass over the dev trajectories is about 9-10 M tokens.
-- Chat templates: thinking is turned off (`enable_thinking=False`) when the template reads it; a template that needs a
-  reasoning field gets an empty one; a template that prints the date gets 2025-08-05.
-
-`report` prints a table of results and, with `--scores`, the Spearman rho of AgentPPL and of minus plain PPL against
-R and N. A scores file is `{"models": {model: {"R": x, "N": y}}}` (or the inner mapping alone), keyed by the `--model`
-string used in `score`.
+- One pass is about 9.3 M tokens (dev) or 6.2 M tokens (held-out) for a typical tokenizer.
+- Chat templates: thinking is turned off (`enable_thinking=False`) when the template reads it. A template that needs a
+  reasoning field gets an empty one. A template that prints the date gets 2025-08-05.
+- `report` prints a table of results and, with `--scores`, the Spearman rho of each measure (minus plain PPL) against
+  R and N. A scores file is `{"models": {model: {"R": x, "N": y}}}`, keyed by the `--model` string used in `score`.
 
 ## Release files
 
-Built by `scripts/build_dataset.py` (writes files only; nothing is uploaded). Formats are in `agentppl/data.py`.
+Built by `scripts/build_dataset.py` from the research repository. Formats are in `agentppl/data.py`.
 
 | file | size | content |
 |---|---|---|
-| `trajectories.jsonl.gz` | 9.3 MB | 1,401 dev trajectories: id, split, source dataset, revision, source reference, licence, task, teacher, messages with typed parts, canonical rendering (Flint's template) with typed byte spans and turns |
-| `picks/obsgain-nothought.json` | 0.80 MB | 55,995 ranges, 232,194 bytes |
-| `picks/obsgain-easy.json` | 0.34 MB | 23,175 ranges, 94,720 bytes |
-| `picks/obsgain-taskgain.json` | 0.53 MB | 36,813 ranges, 160,469 bytes |
-| `scores_dev.json` | 2 KB | TB2.1 R and N of the 25 dev models |
-| `MANIFEST.json` | 4 KB | sizes, SHA-256, counts |
+| `trajectories.jsonl.gz` | 15.4 MB | 2,361 trajectories (1,401 dev, 960 held-out): id, split, source dataset, revision, source reference, licence, task, teacher, messages with typed parts, canonical rendering (Flint's template) with typed byte spans and turns |
+| `picks/obsgain-easy.json` | 0.50 MB | default: 23,175 dev + 10,568 held-out ranges; combine `capped_bits` |
+| `picks/obsgain-nothought.json` | 1.20 MB | 55,995 + 28,123 ranges; combine `prob_mean` |
+| `picks/obsgain-taskgain.json` | 0.84 MB | 36,813 + 21,492 ranges; combine `prob_mean` |
+| `scores_dev.json` | 2 KB | TB2.1 R and N of the 25 dev models (Artificial Analysis) |
+| `MANIFEST.json` | 10 KB | sizes, SHA-256, counts |
 
 - Trajectory ids are content hashes: SHA-256 of (source dataset, teacher, messages), first 16 hex digits. The teacher
-  is in the hash because the Terminal-Lego GLM-5 and DeepSeek-V3.2 files hold 42 identical trajectories (same task,
-  same messages); the dev set keeps both copies, as the dev measurement did (`MANIFEST.json` lists them).
-- The pick sets, what each picks, and the search run and program each comes from:
+  is in the hash because the Terminal-Lego GLM-5 and DeepSeek-V3.2 files hold identical trajectories for some tasks
+  (42 pairs in each split). Both copies stay in the data, as in the measurements above. `MANIFEST.json` lists them.
+- Each pick set is the output of a frozen program over Flint's per-token losses on variants of each trajectory. The
+  held-out ranges come from the same programs run on Flint's passes over the held-out trajectories. Their counts equal
+  the counts of the pre-registered held-out run.
 
 | set | program (SHA-256 prefix) | picks |
 |---|---|---|
-| `obsgain-nothought` | 466edc35 | command tokens whose Flint loss drops > 0.5 bits when the earlier terminal output is visible, measured with the agent's thoughts removed on both sides |
-| `obsgain-easy` | 1152f4c8 | command tokens of turns ≥ 1 whose Flint loss drops > 0.5 bits with the output visible, and that Flint predicts in < 4 bits |
+| `obsgain-easy` | 1152f4c8 | command tokens of turns ≥ 1 whose Flint loss drops > 0.5 bits with the terminal output visible, and that Flint predicts in < 4 bits |
+| `obsgain-nothought` | 466edc35 | command tokens whose Flint loss drops > 0.5 bits with the output visible, with the agent's thoughts removed on both sides |
 | `obsgain-taskgain` | b7f43f6c | command tokens of turns ≥ 1 whose Flint loss drops > 0.5 bits with the output visible; in a trajectory with none, turn-0 command tokens where the task description helps Flint by > 1 bit |
-
-- **Held-out split: not in this release.** The held-out trajectories and their picks stay sealed until the held-out
-  judgement. The hook is `heldout()` in `scripts/build_dataset.py` (`--heldout` refuses for now); it will add records
-  with `"split": "heldout"` and each pick set's held-out ranges to the same files.
 
 ## Test
 
-`tests/test_dev_values.py` checks the toolkit against the research harness on dev models, from their stored per-token
-outputs (CPU only). For each model, the toolkit renders every trajectory with the model's template and tokenizes it;
-the text, spans and token byte offsets must equal the harness's. Then it maps each pick set onto the model's tokens and
-combines the stored bits; AgentPPL must equal the harness's values to 1e-9, each source program's own combine run on the
-toolkit's rows must equal the harness's value of that program to 1e-9, and plain PPL must equal the stored summary to
-1e-6.
+`tests/test_dev_values.py` checks the toolkit against the research harness from the dev models' stored per-token
+outputs (CPU only), on both splits. For each model, the toolkit renders every trajectory with the model's template and
+tokenizes it; the text, spans and token byte offsets must equal the harness's. Then it maps each pick set onto the
+model's tokens and combines the stored bits. AgentPPL and each source program's own combine must equal the harness's
+values to 1e-9, and plain PPL must equal the stored summary to 1e-6. On the held-out split the reference is the
+pre-registered held-out run on the dev models.
 
 ```bash
-AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py              # 5 models, full path
-AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --dumps-only # all 25, the harness's renderings
+AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split dev               # 5 models, full path
+AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split heldout --dumps-only  # all 25 dev models
 ```
 
-Last run (2026-11-24): 5 of 5 models on the full path and 25 of 25 from the stored outputs, 0 failures.
+Last run (2026-11-24): 5 of 5 models on the full path; 25 of 25 dev models on each split from the stored outputs;
+0 failures. GPU smoke test (`scripts/smoke_gpu.sh`, 8 dev models, one vLLM pass each): see the end of this file.
 
 ## Licences and attribution
 
@@ -134,8 +143,8 @@ Last run (2026-11-24): 5 of 5 models on the full path and 25 of 25 from the stor
   - Terminal-Lego-Traj-8k, LegoX Team, <https://huggingface.co/datasets/Lego-X/Terminal-Lego-Traj-8k> (revision
     02279e0). Its card notes that third-party code and task materials inside it stay under their own licences.
   - Terminal Wrench, <https://huggingface.co/datasets/few-sh/terminal-wrench> (trajectories, revision 6ab64c4; index
-    `few-sh/terminal-wrench-trajectories`, revision 6224497). Baseline (non-hack) trajectories of SETA tasks
-    (`camel-ai/seta-env`) only.
+    `few-sh/terminal-wrench-trajectories`, revision 6224497). Only baseline (non-hack) trajectories of SETA tasks
+    (`camel-ai/seta-env`).
 
     ```bibtex
     @misc{terminalwrench2026,
@@ -145,18 +154,20 @@ Last run (2026-11-24): 5 of 5 models on the full path and 25 of 25 from the stor
       url    = {https://github.com/few-sh/terminal-wrench},
     }
     ```
-- **Picks (derived from Flint):** `RecursiveSI/flint` is released under Apache-2.0 (its Hugging Face card, checked
-  2026-11-24: "Flint is released under the Apache 2.0 license. Hosted API terms and data practices are separate from the
-  weight license."). The picks are byte offsets into the trajectories, computed from Flint's per-token losses on local
-  BF16 weights (no hosted API). Apache-2.0 sets no limit on the use of a model's outputs, and the picks hold no Flint
-  weights or code, so they may be shipped; we credit Flint as the evaluator.
-- **Scores:** Terminal-Bench 2.1 results from Artificial Analysis (Terminus 2, 89 tasks, 3 runs each). Cite them as
-  Artificial Analysis when you reuse `scores_dev.json`.
+- **Evaluator and picks:** Recursive Flint, <https://huggingface.co/RecursiveSI/flint>, released under Apache-2.0 (its
+  card, checked 2026-11-24: "Flint is released under the Apache 2.0 license. Hosted API terms and data practices are
+  separate from the weight license."). The picks are byte offsets into the trajectories, computed from Flint's
+  per-token losses on local BF16 weights (no hosted API). They hold no Flint weights or code, and Apache-2.0 sets no
+  limit on the use of a model's outputs.
+- **Scores:** the Terminal-Bench 2.1 scores in `scores_dev.json` come from Artificial Analysis (Terminus 2, 89 tasks,
+  3 runs each). Only the 25 dev models' scores are included. Cite Artificial Analysis when you reuse them.
 
 ## Known limits
 
-- The vLLM path (`agentppl score`) has not run on a GPU in this repository yet; its CPU parts (rendering, tokenizing,
-  mapping, combining) are what the test checks, and `score` itself was checked end to end with stored bits in place of
-  vLLM.
 - Models whose tokenizer or weights need `trust_remote_code`, extra vLLM arguments, or a chat template from another
   repository (for example Magistral, whose official repository has no Hugging Face template) are not handled.
+- The signal may depend on the Terminus-2 format: all trajectories use it.
+
+## GPU smoke test
+
+_pending_
