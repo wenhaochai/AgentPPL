@@ -51,6 +51,13 @@ tokens the agent reads off the earlier terminal output.
 
 ## Sources and licences
 
+Composition (all Terminus-2 runs; no teacher is among the scored models):
+
+| source | tasks (dev / held-out) | teachers | trajectories (dev / held-out) |
+|---|---|---|---|
+| Terminal-Lego-Traj-8k: StackOverflow questions turned into Docker tasks | 292 / 288 | Claude Opus 4.6, GLM-5, DeepSeek-V3.2 | 876 / 864 |
+| terminal-wrench: successful baseline runs on SETA tasks | 175 / 54 | Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.4 | 525 / 96 |
+
 - Terminal-Lego-Traj-8k (LegoX Team, Apache-2.0), <https://huggingface.co/datasets/Lego-X/Terminal-Lego-Traj-8k>,
   revision 02279e0. Third-party code and task materials inside it stay under their own licences.
 - Terminal Wrench (Apache-2.0), <https://huggingface.co/datasets/few-sh/terminal-wrench>, revision 6ab64c4; baseline

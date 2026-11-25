@@ -94,6 +94,15 @@ agenticppl report *.json --scores release/scores_dev.json
   the score. A scores file is `{"models": {model: {"R": x}}}`, keyed by the `--model` string used in `score`; `R` is the
   score described under Results.
 
+## Trajectories
+
+Composition (all Terminus-2 runs; no teacher is among the scored models):
+
+| source | tasks (dev / held-out) | teachers | trajectories (dev / held-out) |
+|---|---|---|---|
+| Terminal-Lego-Traj-8k: StackOverflow questions turned into Docker tasks | 292 / 288 | Claude Opus 4.6, GLM-5, DeepSeek-V3.2 | 876 / 864 |
+| terminal-wrench: successful baseline runs on SETA tasks | 175 / 54 | Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.4 | 525 / 96 |
+
 ## Release files
 
 Built by `scripts/build_dataset.py` from the research repository. Formats are in `agenticppl/data.py`.
