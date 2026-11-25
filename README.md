@@ -30,21 +30,22 @@ Dataset: <https://huggingface.co/datasets/wchai/AgentPPL>
 ## Results
 
 Spearman rho of each measure with Terminal-Bench 2.1, one score per model; positive means the measure orders the
-models the right way. R = reasoning-mode score, N = non-reasoning score (a model with one AA score has it as both).
+models the right way. A model's score is its Artificial Analysis TB2.1 score in reasoning mode at the highest effort,
+or AA's single score when the model has one mode.
 
-| measure | dev trajectories × 25 dev models (R / N) | held-out trajectories × 25 dev models (R / N) | held-out trajectories × 15 held-out models (R / N) |
+| measure | dev trajectories × 25 dev models | held-out trajectories × 25 dev models | held-out trajectories × 15 held-out models |
 |---|---|---|---|
-| **AgentPPL** (`obsgain-easy`, default) | +0.890 / +0.920 | +0.854 / +0.876 | **+0.788 / +0.733** |
-| plain PPL (minus bits per byte) | −0.29 / −0.29 | −0.288 / −0.289 | −0.495 / −0.883 |
+| **AgentPPL** (`obsgain-easy`, default) | +0.890 | +0.854 | **+0.788** |
+| plain PPL (minus bits per byte) | −0.29 | −0.288 | −0.495 |
 
 - The held-out models are 15 open instruct models of 21-37B total parameters. The 25 dev models are 2-14B and 59-128B,
   so the held-out band is new to the search, and its narrow size range leaves model size little of the ranking to
   explain. Held-out model names, scores and per-model values are not released.
-- On held-out trajectories × held-out models, AgentPPL minus plain PPL is +1.28 in rho_R (paired bootstrap over the
+- On held-out trajectories × held-out models, AgentPPL minus plain PPL is +1.28 in rho (paired bootstrap over the
   models, 10,000 draws, 95% interval [+0.57, +1.79]).
 - **How the default was chosen.** Three agent search runs each froze their best program on dev. All three were
   measured once, pre-registered, on both held-out cells. `obsgain-easy` (run 05dc517c, program 1152f4c8) was chosen
-  as the default after that test. The other two got rho_R +0.695 (`obsgain-nothought`) and +0.683 (`obsgain-taskgain`,
+  as the default after that test. The other two got rho +0.695 (`obsgain-nothought`) and +0.683 (`obsgain-taskgain`,
   with its own top-20 rank combine) on held-out trajectories × held-out models. So the +0.788 is the best of three on
   that cell, not a fresh draw.
 - The dev numbers are optimistic: the agents that wrote the pick rules saw the dev rho of the 25 dev models on the dev
@@ -53,10 +54,10 @@ models the right way. R = reasoning-mode score, N = non-reasoning score (a model
 Extra pick sets (in the release, scored with the probability mean: the arithmetic mean over ranges of 2^-bits, bits
 scaled by range bytes / covering-token bytes):
 
-| set | dev × dev (R / N) | held-out traj. × dev models (R / N) |
+| set | dev × dev | held-out traj. × dev models |
 |---|---|---|
-| `obsgain-nothought` (466edc35) | +0.903 / +0.938 | +0.869 / +0.923 |
-| `obsgain-taskgain` (b7f43f6c) | +0.897 / +0.947 | +0.893 / +0.942 |
+| `obsgain-nothought` (466edc35) | +0.903 | +0.869 |
+| `obsgain-taskgain` (b7f43f6c) | +0.897 | +0.893 |
 
 Their held-out-model numbers with this combine were not measured. `tests/test_dev_values.py --dumps-only` prints all
 dev-model columns.
@@ -90,7 +91,8 @@ agentppl report *.json --scores release/scores_dev.json
 - Chat templates: thinking is turned off (`enable_thinking=False`) when the template reads it. A template that needs a
   reasoning field gets an empty one. A template that prints the date gets 2025-08-05.
 - `report` prints a table of results and, with `--scores`, the Spearman rho of each measure (minus plain PPL) against
-  R and N. A scores file is `{"models": {model: {"R": x, "N": y}}}`, keyed by the `--model` string used in `score`.
+  the score. A scores file is `{"models": {model: {"R": x}}}`, keyed by the `--model` string used in `score`; `R` is the
+  score described under Results.
 
 ## Release files
 
@@ -102,7 +104,7 @@ Built by `scripts/build_dataset.py` from the research repository. Formats are in
 | `picks/obsgain-easy.json` | 0.50 MB | default: 23,175 dev + 10,568 held-out ranges; combine `capped_bits` |
 | `picks/obsgain-nothought.json` | 1.20 MB | 55,995 + 28,123 ranges; combine `prob_mean` |
 | `picks/obsgain-taskgain.json` | 0.84 MB | 36,813 + 21,492 ranges; combine `prob_mean` |
-| `scores_dev.json` | 2 KB | TB2.1 R and N of the 25 dev models (Artificial Analysis) |
+| `scores_dev.json` | 2 KB | TB2.1 scores of the 25 dev models (Artificial Analysis; use `R`, the score described under Results) |
 | `MANIFEST.json` | 10 KB | sizes, SHA-256, counts |
 
 - Trajectory ids are content hashes: SHA-256 of (source dataset, teacher, messages), first 16 hex digits. The teacher

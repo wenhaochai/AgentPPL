@@ -21,7 +21,9 @@ Fixed public agent trajectories and precomputed byte ranges for **AgentPPL**, a 
 Terminal-Bench 2.1 rank from one forward pass. Code: <https://github.com/wenhaochai/AgentPPL>.
 
 On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgentPPL ranks the models with
-Spearman rho +0.79 (reasoning-mode TB2.1 scores), where plain perplexity on the same text gets −0.50.
+Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50. A model's score is
+its Artificial Analysis TB2.1 score in reasoning mode at the highest effort, or AA's single score when the model has one
+mode (`R` in `scores_dev.json`).
 
 ## Files
 
@@ -30,7 +32,7 @@ Spearman rho +0.79 (reasoning-mode TB2.1 scores), where plain perplexity on the 
 | `trajectories.jsonl.gz` | 2,361 Terminus-2 trajectories, one JSON object per line. The `split` field is `dev` (1,401) or `heldout` (960). Fields: `id` (content hash), `split`, `source`, `source_revision`, `source_ref`, `licence`, `task_id`, `teacher`, `n_turns`, `messages` (role, content, typed parts), `text` + `spans` (the canonical rendering with Flint's chat template; spans are `[byte_start, byte_end, type, turn]`) |
 | `picks/obsgain-easy.json` | the default pick set: byte ranges `[start, end)` of each trajectory's canonical `text`, keyed by trajectory id; combine `capped_bits` |
 | `picks/obsgain-nothought.json`, `picks/obsgain-taskgain.json` | two extra pick sets; combine `prob_mean` |
-| `scores_dev.json` | Terminal-Bench 2.1 scores (Artificial Analysis) of the 25 dev models |
+| `scores_dev.json` | Terminal-Bench 2.1 scores (Artificial Analysis) of the 25 dev models; use `R` |
 | `MANIFEST.json` | sizes, SHA-256, counts |
 
 Note: in the viewer, every row shows under the `dev` split. Filter on the `split` field to get the held-out trajectories.
