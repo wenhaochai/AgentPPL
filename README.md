@@ -133,7 +133,7 @@ AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split heldout 
 ```
 
 Last run (2026-11-24): 5 of 5 models on the full path; 25 of 25 dev models on each split from the stored outputs;
-0 failures. GPU smoke test (`scripts/smoke_gpu.sh`, 8 dev models, one vLLM pass each): see the end of this file.
+0 failures. The GPU smoke test is at the end of this file.
 
 ## Licences and attribution
 
@@ -170,4 +170,10 @@ Last run (2026-11-24): 5 of 5 models on the full path; 25 of 25 dev models on ea
 
 ## GPU smoke test
 
-_pending_
+`scripts/smoke_gpu.sh` (wq w4532, 2026-11-24): `agentppl score --split dev` on 8 dev models (Qwen3.5-2B/4B/9B,
+Ministral-3-8B/14B, gemma-4-12B, granite-4.2-3b/8b), one H100 each, one vLLM pass per model (2-9 min at
+22-110k tok/s). `scripts/smoke_compare.py` compared plain PPL and the three pick sets with the same measures on the
+stored harness passes: all 32 values within 1e-3, max |diff| 1.4e-4 (Qwen3.5-9B plain PPL). That is bf16 run-to-run
+noise; 4 of the 8 models matched to 1e-7 or better. The run used the probability-mean combine for every set, from
+before the default changed. The default's capped-bits combine works on the same per-token bits and is checked against
+the harness by the CPU test.
