@@ -1,10 +1,10 @@
-"""agentppl score  --model HF_ID [--tp N] [--split dev|heldout|all] [--picks NAME] [--data DIR] [--out FILE]
-agentppl report RESULT.json ... [--scores FILE]
+"""agenticppl score  --model HF_ID [--tp N] [--split dev|heldout|all] [--picks NAME] [--data DIR] [--out FILE]
+agenticppl report RESULT.json ... [--scores FILE]
 
 score: renders every trajectory of the split with the model's chat template, runs one vLLM forward pass (prompt
-log-probs only, no generation), and writes {model, splits: {split: {n_docs, picks_name, agentppl, n_ranges, plain_ppl,
-picks: {name: {agentppl, combine, n_ranges}}}}} as JSON; agentppl and n_ranges are the default pick set's.
-report: a table of results, and with --scores the Spearman rho of AgentPPL and of minus plain
+log-probs only, no generation), and writes {model, splits: {split: {n_docs, picks_name, agenticppl, n_ranges, plain_ppl,
+picks: {name: {agenticppl, combine, n_ranges}}}}} as JSON; agenticppl and n_ranges are the default pick set's.
+report: a table of results, and with --scores the Spearman rho of AgenticPPL and of minus plain
 PPL against the scores (R and N).
 """
 import argparse, json, math, os, sys, time
@@ -13,7 +13,7 @@ import numpy as np
 
 from . import __version__
 from .data import DEFAULT_PICKS, SPLITS, default_dir, load_scores, pick_sets, trajectories
-from .measure import agentppl_of, plain_ppl, same_spans, spearman, token_bytes
+from .measure import agenticppl_of, plain_ppl, same_spans, spearman, token_bytes
 
 LN2 = math.log(2.0)
 
@@ -106,15 +106,15 @@ def score(a):
     log(f"rendered and tokenized {len(docs)} docs in {time.time() - t0:.0f} s; "
         f"{sum(map(len, prompts))} tokens, longest {max(map(len, prompts))}")
     bits = dict(zip([d["id"] for d in docs], forward(a.model, a.tp, prompts, a.dtype)))
-    res = {"agentppl_version": __version__, "model": a.model, "data": os.path.abspath(data),
+    res = {"agenticppl_version": __version__, "model": a.model, "data": os.path.abspath(data),
            "splits": {}, "docs_with_special_tokens_in_content": len(special), "docs_unmatched": len(unmatched)}
     for sp in want:
         ds = [d for d in docs if d["split"] == sp]
         if not ds:
             continue
-        picks = {name: agentppl_of(ds, ps["ranges"], model, bits, ps["combine"]) for name, ps in sets.items() if sp in ps["splits"]}
+        picks = {name: agenticppl_of(ds, ps["ranges"], model, bits, ps["combine"]) for name, ps in sets.items() if sp in ps["splits"]}
         first = next(iter(picks), None)   # the default set, or the one asked for
-        res["splits"][sp] = {"n_docs": len(ds), "picks_name": first, "agentppl": picks[first]["agentppl"] if first else None,
+        res["splits"][sp] = {"n_docs": len(ds), "picks_name": first, "agenticppl": picks[first]["agenticppl"] if first else None,
                              "n_ranges": picks[first]["n_ranges"] if first else 0, "plain_ppl": plain_ppl(ds, model, bits),
                              "picks": picks}
     txt = json.dumps(res, indent=1)
@@ -136,7 +136,7 @@ def report(a):
         print(f"\n== {sp} ({len(rows)} models)")
         print("\t".join(["model", "plain_ppl"] + names + (["R", "N"] if scores else [])))
         for m, s in sorted(rows):
-            cells = [m, f"{s['plain_ppl']:.4f}"] + [f"{s['picks'][n]['agentppl']:.4f}" if n in s["picks"] else "-" for n in names]
+            cells = [m, f"{s['plain_ppl']:.4f}"] + [f"{s['picks'][n]['agenticppl']:.4f}" if n in s["picks"] else "-" for n in names]
             if scores:
                 sc = scores.get(m, {})
                 cells += ["-" if sc.get(k) is None else f"{sc[k]:.3f}" for k in ("R", "N")]
@@ -144,7 +144,7 @@ def report(a):
         if not scores:
             continue
         cols = [("-plain_ppl", {m: -s["plain_ppl"] for m, s in rows})] + \
-               [(n, {m: s["picks"][n]["agentppl"] for m, s in rows if n in s["picks"]}) for n in names]
+               [(n, {m: s["picks"][n]["agenticppl"] for m, s in rows if n in s["picks"]}) for n in names]
         print("\nSpearman rho\tR (n)\tN (n)")
         for label, v in cols:
             cells = [label]
@@ -158,7 +158,7 @@ def report(a):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="agentppl", description="AgentPPL: score a model on the release trajectories, or report results")
+    ap = argparse.ArgumentParser(prog="agenticppl", description="AgenticPPL: score a model on the release trajectories, or report results")
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("score", help="score one model (GPU, vLLM)")
     s.add_argument("--model", required=True, help="Hugging Face repo id or local path")
@@ -166,7 +166,7 @@ def main(argv=None):
     s.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
     s.add_argument("--picks", default=None, help=f"one pick set (default: every set, {DEFAULT_PICKS} first)")
     s.add_argument("--dtype", default="bfloat16")
-    s.add_argument("--data", default=None, help="release dir (default $AGENTPPL_DATA or <repo>/release)")
+    s.add_argument("--data", default=None, help="release dir (default $AGENTICPPL_DATA or <repo>/release)")
     s.add_argument("--out", default=None, help="also write the JSON here")
     r = sub.add_parser("report", help="table and Spearman rho of score results")
     r.add_argument("results", nargs="+")

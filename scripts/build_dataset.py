@@ -1,4 +1,4 @@
-"""Build the AgentPPL release files from the research repo (token-ppl). Writes files only; uploads nothing.
+"""Build the AgenticPPL release files from the research repo (token-ppl). Writes files only; uploads nothing.
 
   python scripts/build_dataset.py --src /path/to/token-ppl --out release/ [--work DIR] [--no-verify]
 
@@ -9,7 +9,7 @@ Inputs (no scored model's data, no held-out model name or score):
   pumpkin/tokppl2/store/real/picks/<sha>/     the 3 frozen problem-v2 programs and their dev picks (picked.npz)
   pumpkin/tokppl2/store/real/{feats,heldout}/ the evaluator (Flint) features on the dev and held-out trajectories
   pumpkin/tokppl/data/scores.json (real.dev) + configs/panel_tb.tsv   dev TB2.1 scores by HF repo
-Outputs in --out: trajectories.jsonl.gz, picks/<name>.json, scores_dev.json, MANIFEST.json (formats: agentppl/data.py).
+Outputs in --out: trajectories.jsonl.gz, picks/<name>.json, scores_dev.json, MANIFEST.json (formats: agenticppl/data.py).
 --verify (default): re-renders every trajectory with the toolkit's renderer and Flint's tokenizer (HF cache) and
 requires the canonical text and spans byte for byte.
 """
@@ -19,7 +19,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-from agentppl.measure import nonmarkup  # noqa: E402
+from agenticppl.measure import nonmarkup  # noqa: E402
 
 LICENCE = "Apache-2.0"   # both source datasets' HF cards, checked 2026-11-24
 SOURCES = {   # probe `source` -> (sources.json key, HF dataset)
@@ -72,7 +72,7 @@ def trajectories(src, split, verify):
     srcs = json.load(open(os.path.join(src, "data/tb/raw/sources.json")))
     rd = None
     if verify:
-        from agentppl.render import Renderer
+        from agenticppl.render import Renderer
         rd = Renderer(EVALUATOR)
     out, dup = [], {}
     for c in canon:
@@ -189,7 +189,7 @@ def main():
             for d in v:
                 gz.write((json.dumps(d, ensure_ascii=False) + "\n").encode())
     files["trajectories.jsonl.gz"] = p
-    sets = picks(a.src, by_split, os.path.join(a.work, "agentppl-picks"))
+    sets = picks(a.src, by_split, os.path.join(a.work, "agenticppl-picks"))
     for s in sets:
         p = os.path.join(a.out, "picks", s["name"] + ".json")
         json.dump(s, open(p, "w"), separators=(",", ":"))
@@ -202,7 +202,7 @@ def main():
         for d in v:
             src_counts.setdefault(d["source"], {}).setdefault(d["split"], 0)
             src_counts[d["source"]][d["split"]] += 1
-    man = {"name": "AgentPPL", "splits": {sp: len(v) for sp, v in by_split.items()},
+    man = {"name": "AgenticPPL", "splits": {sp: len(v) for sp, v in by_split.items()},
            "default_picks": DEFAULT_PICKS,
            "pick_sets": {s["name"]: {"combine": s["combine"], "counts": s["counts"]} for s in sets},
            "sources": {k: {"trajectories": v, "licence": LICENCE} for k, v in sorted(src_counts.items())},

@@ -14,7 +14,7 @@ equal the harness's to 1e-9 (plain PPL to 1e-6):
 --dumps-only: every dev model with a dump, the harness's renderings in place of the tokenizer; also prints the
 Spearman rho of every pick set and of minus plain PPL with the dev scores.
 
-  AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py [--split dev|heldout] [--models a,b] [--dumps-only]
+  AGENTICPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py [--split dev|heldout] [--models a,b] [--dumps-only]
   pytest tests/   (dev on the default models with their tokenizers, held-out from the dumps; skipped without the repo)
 """
 import argparse, importlib.util, json, os, sys, time, zipfile
@@ -23,10 +23,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-from agentppl.data import default_dir, load_scores, pick_sets, trajectories  # noqa: E402
-from agentppl.measure import agentppl_of, gather, plain_ppl, read_jsonl, same_spans, spearman, token_bytes  # noqa: E402
+from agenticppl.data import default_dir, load_scores, pick_sets, trajectories  # noqa: E402
+from agenticppl.measure import agenticppl_of, gather, plain_ppl, read_jsonl, same_spans, spearman, token_bytes  # noqa: E402
 
-SRC = os.environ.get("AGENTPPL_SRC", "")   # the research repo (token-ppl) with the harness dumps; tests skip without it
+SRC = os.environ.get("AGENTICPPL_SRC", "")   # the research repo (token-ppl) with the harness dumps; tests skip without it
 DEFAULT = ["qwen3-5-4b", "gemma-4-12b", "k2-horizon-7b", "ministral-3-8b", "granite-4-2-3b"]
 TOL = {"plain_ppl": 1e-6}   # relative; 1e-9 for the rest
 ROOT = {"dev": "tb", "heldout": "tb2"}
@@ -130,7 +130,7 @@ def check_model(slug, repo, split, docs, sets, exp, use_tokenizer):
     fails, model, bits, rows_of = [], {}, {}, {}
     rd = None
     if use_tokenizer:
-        from agentppl.render import Renderer
+        from agenticppl.render import Renderer
         rd = Renderer(repo)
     for d in docs:
         h = hdocs[d["source_ref"]]
@@ -156,7 +156,7 @@ def check_model(slug, repo, split, docs, sets, exp, use_tokenizer):
         rows_of[d["id"]] = np.arange(lo, hi)
     vals = {"plain_ppl": plain_ppl(docs, model, bits)}
     for name, ps in sets.items():
-        vals[name] = agentppl_of(docs, ps["ranges"], model, bits, ps["combine"])["agentppl"]
+        vals[name] = agenticppl_of(docs, ps["ranges"], model, bits, ps["combine"])["agenticppl"]
         vals[name + ":native"] = native_value(docs, ps, model, z, rows_of)
     for key, want in exp(slug).items():
         if want is None or key not in vals:
@@ -211,14 +211,14 @@ def main():
 def test_dev_values():
     import pytest
     if not os.path.isdir(dumps_dir("dev")):
-        pytest.skip("research repo with the dev dumps not found (AGENTPPL_SRC)")
+        pytest.skip("research repo with the dev dumps not found (AGENTICPPL_SRC)")
     assert run(DEFAULT, "dev", True)[1] == 0
 
 
 def test_heldout_values():
     import pytest
     if not os.path.isdir(dumps_dir("heldout")):
-        pytest.skip("research repo with the held-out dumps of the dev models not found (AGENTPPL_SRC)")
+        pytest.skip("research repo with the held-out dumps of the dev models not found (AGENTICPPL_SRC)")
     assert run(DEFAULT, "heldout", False)[1] == 0
 
 

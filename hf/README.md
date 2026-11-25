@@ -1,6 +1,6 @@
 ---
 license: apache-2.0
-pretty_name: AgentPPL
+pretty_name: AgenticPPL
 size_categories:
 - 1K<n<10K
 tags:
@@ -15,12 +15,12 @@ configs:
     path: trajectories.jsonl.gz
 ---
 
-# AgentPPL
+# AgenticPPL
 
-Fixed public agent trajectories and precomputed byte ranges for **AgentPPL**, a cheap predictor of an LLM's
-Terminal-Bench 2.1 rank from one forward pass. Code: <https://github.com/wenhaochai/AgentPPL>.
+Fixed public agent trajectories and precomputed byte ranges for **AgenticPPL**, a cheap predictor of an LLM's
+Terminal-Bench 2.1 rank from one forward pass. Code: <https://github.com/wenhaochai/AgenticPPL>.
 
-On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgentPPL ranks the models with
+On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgenticPPL ranks the models with
 Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50. A model's score is
 its Artificial Analysis TB2.1 score in reasoning mode at the highest effort, or AA's single score when the model has one
 mode (`R` in `scores_dev.json`).
@@ -40,12 +40,12 @@ Note: in the viewer, every row shows under the `dev` split. Filter on the `split
 ## Use
 
 ```bash
-pip install git+https://github.com/wenhaochai/AgentPPL
-huggingface-cli download wchai/AgentPPL --repo-type dataset --local-dir release
-AGENTPPL_DATA=release agentppl score --model Qwen/Qwen3.5-4B --split heldout
+pip install git+https://github.com/wenhaochai/AgenticPPL
+huggingface-cli download wchai/AgenticPPL --repo-type dataset --local-dir release
+AGENTICPPL_DATA=release agenticppl score --model Qwen/Qwen3.5-4B --split heldout
 ```
 
-AgentPPL (default) is minus the mean over the picked ranges of the model's bits on each range, with each token's bits
+AgenticPPL (default) is minus the mean over the picked ranges of the model's bits on each range, with each token's bits
 capped at 2 and each range's sum capped at 2. The ranges were picked with Flint's per-token losses: they are command
 tokens the agent reads off the earlier terminal output.
 

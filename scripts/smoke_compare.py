@@ -1,7 +1,7 @@
-"""Compares `agentppl score` results of dev models (GPU) with the same measures on the harness's dumps (the GPU
+"""Compares `agenticppl score` results of dev models (GPU) with the same measures on the harness's dumps (the GPU
 smoke test).
 
-  python scripts/smoke_compare.py RESULT.json ...     (AGENTPPL_SRC: the token-ppl repo)
+  python scripts/smoke_compare.py RESULT.json ...     (AGENTICPPL_SRC: the token-ppl repo)
 
 Reference per model, split dev: plain PPL = the dump's bpb_all; each pick set = the toolkit's combine (the one the
 result names) on the dump's bits, which tests/test_dev_values.py shows equal to the harness's values. Acceptance:
@@ -12,7 +12,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tests"))
 import test_dev_values as T  # noqa: E402
-from agentppl.data import default_dir, pick_sets, trajectories  # noqa: E402
+from agenticppl.data import default_dir, pick_sets, trajectories  # noqa: E402
 
 TOL = 1e-3
 
@@ -34,7 +34,7 @@ def main():
             sets[name]["combine"] = v.get("combine", "prob_mean")   # the combine this result used
         dump, _ = T.check_model(s, r["model"], "dev", docs, sets, exp, False)
         cmp = [("plain_ppl", got["plain_ppl"], exp(s)["plain_ppl"])] + \
-              [(n, v["agentppl"], dump[n]) for n, v in got["picks"].items()]
+              [(n, v["agenticppl"], dump[n]) for n, v in got["picks"].items()]
         for k, x, want in cmp:
             d = abs(x - want)
             worst = max(worst, d)

@@ -18,7 +18,7 @@ DEFAULT_PICKS = "obsgain-easy"   # the owner's choice (2026-11-24), after the he
 
 
 def default_dir():
-    return os.environ.get("AGENTPPL_DATA") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "release")
+    return os.environ.get("AGENTICPPL_DATA") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "release")
 
 
 def trajectories(data_dir):

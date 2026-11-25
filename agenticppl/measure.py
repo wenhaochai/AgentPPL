@@ -1,4 +1,4 @@
-"""From one model's per-token bits on its own rendering of the trajectories to AgentPPL and plain PPL (numpy only).
+"""From one model's per-token bits on its own rendering of the trajectories to AgenticPPL and plain PPL (numpy only).
 
 Coordinates. A pick is a byte range [start, end) of a trajectory's canonical rendering (`text` in trajectories.jsonl,
 the rendering with the evaluator Flint's template). Every rendering holds the same non-markup spans (task, thought,
@@ -96,7 +96,7 @@ def capped_bits(bits, rid, n):
     return -float(np.minimum(tot[has], CAP).mean()), int(has.sum())
 
 
-def agentppl(bits, nbytes, rid, range_bytes):
+def agenticppl(bits, nbytes, rid, range_bytes):
     """Arithmetic mean over ranges of 2^-(range bits), range bits = sum of row bits * range bytes / row bytes.
     Returns (value, number of ranges with a scored row)."""
     n = len(range_bytes)
@@ -129,8 +129,8 @@ def gather(docs, picks, model):
     return out, (np.concatenate(rbytes) if rbytes else np.zeros(0, np.int64)), dropped
 
 
-def agentppl_of(docs, picks, model, bits, combine="prob_mean"):
-    """AgentPPL of one model and pick set. bits: {doc id: float array per token}. Returns a dict."""
+def agenticppl_of(docs, picks, model, bits, combine="prob_mean"):
+    """AgenticPPL of one model and pick set. bits: {doc id: float array per token}. Returns a dict."""
     doc_rows, rbytes, dropped = gather(docs, picks, model)
     b = [np.asarray(bits[i], np.float64)[rows] for i, rows, _ in doc_rows]
     nb = [(np.asarray(model[i][2])[rows] - np.asarray(model[i][1])[rows]) for i, rows, _ in doc_rows]
@@ -139,10 +139,10 @@ def agentppl_of(docs, picks, model, bits, combine="prob_mean"):
     if combine == "capped_bits":
         v, n = capped_bits(cat(b, np.float64), cat(rid, np.int64), len(rbytes))
     elif combine == "prob_mean":
-        v, n = agentppl(cat(b, np.float64), cat(nb, np.float64), cat(rid, np.int64), rbytes)
+        v, n = agenticppl(cat(b, np.float64), cat(nb, np.float64), cat(rid, np.int64), rbytes)
     else:
         raise ValueError(f"unknown combine {combine!r}")
-    return {"agentppl": v, "combine": combine, "n_ranges": n, "n_ranges_in_set": int(len(rbytes) + dropped)}
+    return {"agenticppl": v, "combine": combine, "n_ranges": n, "n_ranges_in_set": int(len(rbytes) + dropped)}
 
 
 def plain_ppl(docs, model, bits):

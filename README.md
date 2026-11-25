@@ -1,12 +1,12 @@
-# AgentPPL
+# AgenticPPL
 
-AgentPPL predicts how an LLM ranks on Terminal-Bench 2.1 from one forward pass over fixed public agent trajectories.
+AgenticPPL predicts how an LLM ranks on Terminal-Bench 2.1 from one forward pass over fixed public agent trajectories.
 It needs only the scored model: no generation, no sandbox, no judge.
 
-On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgentPPL ranks the models with
+On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgenticPPL ranks the models with
 Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50.
 
-Dataset: <https://huggingface.co/datasets/wchai/AgentPPL>
+Dataset: <https://huggingface.co/datasets/wchai/AgenticPPL>
 
 ## What it measures
 
@@ -22,9 +22,9 @@ Dataset: <https://huggingface.co/datasets/wchai/AgentPPL>
    of turn 1 or later that Flint predicts much better when it can see the earlier terminal output (loss drop > 0.5
    bits) and that Flint finds easy in full context (< 4 bits): text the agent reads off the screen. The ranges are
    mapped to any model's rendering by (span, offset in span), because every rendering holds the same span texts.
-4. **AgentPPL** of a model is minus the mean, over the picked ranges, of the model's bits on each range, with each
+4. **AgenticPPL** of a model is minus the mean, over the picked ranges, of the model's bits on each range, with each
    token's bits capped at 2 and each range's sum capped at 2. With the cap, one confidently wrong token costs at most
-   2 bits. Higher AgentPPL = higher predicted TB2.1 rank.
+   2 bits. Higher AgenticPPL = higher predicted TB2.1 rank.
 5. **Plain PPL**, for comparison: bits per byte over all tokens of the model's rendering.
 
 ## Results
@@ -35,13 +35,13 @@ or AA's single score when the model has one mode.
 
 | measure | dev trajectories × 25 dev models | held-out trajectories × 25 dev models | held-out trajectories × 15 held-out models |
 |---|---|---|---|
-| **AgentPPL** (`obsgain-easy`, default) | +0.890 | +0.854 | **+0.788** |
+| **AgenticPPL** (`obsgain-easy`, default) | +0.890 | +0.854 | **+0.788** |
 | plain PPL (minus bits per byte) | −0.29 | −0.288 | −0.495 |
 
 - The held-out models are 15 open instruct models of 21-37B total parameters. The 25 dev models are 2-14B and 59-128B,
   so the held-out band is new to the search, and its narrow size range leaves model size little of the ranking to
   explain. Held-out model names, scores and per-model values are not released.
-- On held-out trajectories × held-out models, AgentPPL minus plain PPL is +1.28 in rho (paired bootstrap over the
+- On held-out trajectories × held-out models, AgenticPPL minus plain PPL is +1.28 in rho (paired bootstrap over the
   models, 10,000 draws, 95% interval [+0.57, +1.79]).
 - **How the default was chosen.** Three agent search runs each froze their best program on dev. All three were
   measured once, pre-registered, on both held-out cells. `obsgain-easy` (run 05dc517c, program 1152f4c8) was chosen
@@ -66,20 +66,20 @@ dev-model columns.
 
 ```bash
 pip install -e .[gpu]                 # numpy, transformers, jinja2; vllm for scoring
-huggingface-cli download wchai/AgentPPL --repo-type dataset --local-dir release   # or AGENTPPL_DATA=DIR
+huggingface-cli download wchai/AgenticPPL --repo-type dataset --local-dir release   # or AGENTICPPL_DATA=DIR
 
-agentppl score --model Qwen/Qwen3.5-4B --tp 1 --split heldout --out qwen3.5-4b.json
-agentppl report *.json --scores release/scores_dev.json
+agenticppl score --model Qwen/Qwen3.5-4B --tp 1 --split heldout --out qwen3.5-4b.json
+agenticppl report *.json --scores release/scores_dev.json
 ```
 
-`score` writes, per split, the default AgentPPL first, then plain PPL and every pick set:
+`score` writes, per split, the default AgenticPPL first, then plain PPL and every pick set:
 
 ```json
 {"model": "Qwen/Qwen3.5-4B",
- "splits": {"heldout": {"n_docs": 960, "picks_name": "obsgain-easy", "agentppl": -0.7755, "n_ranges": 10568,
+ "splits": {"heldout": {"n_docs": 960, "picks_name": "obsgain-easy", "agenticppl": -0.7755, "n_ranges": 10568,
                         "plain_ppl": 1.5233,
-                        "picks": {"obsgain-easy": {"agentppl": -0.7755, "combine": "capped_bits", "n_ranges": 10568},
-                                  "obsgain-nothought": {"agentppl": 0.5850, "combine": "prob_mean", "n_ranges": 28123}}}},
+                        "picks": {"obsgain-easy": {"agenticppl": -0.7755, "combine": "capped_bits", "n_ranges": 10568},
+                                  "obsgain-nothought": {"agenticppl": 0.5850, "combine": "prob_mean", "n_ranges": 28123}}}},
  "docs_with_special_tokens_in_content": 0, "docs_unmatched": 0}
 ```
 
@@ -96,7 +96,7 @@ agentppl report *.json --scores release/scores_dev.json
 
 ## Release files
 
-Built by `scripts/build_dataset.py` from the research repository. Formats are in `agentppl/data.py`.
+Built by `scripts/build_dataset.py` from the research repository. Formats are in `agenticppl/data.py`.
 
 | file | size | content |
 |---|---|---|
@@ -125,13 +125,13 @@ Built by `scripts/build_dataset.py` from the research repository. Formats are in
 `tests/test_dev_values.py` checks the toolkit against the research harness from the dev models' stored per-token
 outputs (CPU only), on both splits. For each model, the toolkit renders every trajectory with the model's template and
 tokenizes it; the text, spans and token byte offsets must equal the harness's. Then it maps each pick set onto the
-model's tokens and combines the stored bits. AgentPPL and each source program's own combine must equal the harness's
+model's tokens and combines the stored bits. AgenticPPL and each source program's own combine must equal the harness's
 values to 1e-9, and plain PPL must equal the stored summary to 1e-6. On the held-out split the reference is the
 pre-registered held-out run on the dev models.
 
 ```bash
-AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split dev               # 5 models, full path
-AGENTPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split heldout --dumps-only  # all 25 dev models
+AGENTICPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split dev               # 5 models, full path
+AGENTICPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py --split heldout --dumps-only  # all 25 dev models
 ```
 
 Last run (2026-11-24): 5 of 5 models on the full path; 25 of 25 dev models on each split from the stored outputs;
@@ -172,7 +172,7 @@ Last run (2026-11-24): 5 of 5 models on the full path; 25 of 25 dev models on ea
 
 ## GPU smoke test
 
-`scripts/smoke_gpu.sh` (wq w4532, 2026-11-24): `agentppl score --split dev` on 8 dev models (Qwen3.5-2B/4B/9B,
+`scripts/smoke_gpu.sh` (wq w4532, 2026-11-24): `agenticppl score --split dev` on 8 dev models (Qwen3.5-2B/4B/9B,
 Ministral-3-8B/14B, gemma-4-12B, granite-4.2-3b/8b), one H100 each, one vLLM pass per model (2-9 min at
 22-110k tok/s). `scripts/smoke_compare.py` compared plain PPL and the three pick sets with the same measures on the
 stored harness passes: all 32 values within 1e-3, max |diff| 1.4e-4 (Qwen3.5-9B plain PPL). That is bf16 run-to-run
