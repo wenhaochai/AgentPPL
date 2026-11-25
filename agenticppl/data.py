@@ -6,7 +6,7 @@
                           text + spans [[b0, b1, type, turn]] (the canonical rendering, Flint's chat template)
   picks/<name>.json       a pick set: {name, default, combine, splits, evaluator, program_sha256, description,
                           ranges {doc id: [[b0, b1]]}} (bytes of the doc's canonical text; every split's docs)
-  scores_<split>.json     {"benchmark", "models": {hf repo: {"R": score, "N": score or null}}}
+  scores_<split>.json     {"benchmark", "models": {hf repo: {"R": score}}}
   MANIFEST.json           files, sizes, SHA-256, counts
 """
 import glob, json, os
@@ -40,6 +40,6 @@ def pick_sets(data_dir, names=None):
 
 
 def load_scores(path):
-    """{model: {"R": .., "N": ..}} from a scores file (a release scores_<split>.json or a plain mapping)."""
+    """{model: {"R": ..}} from a scores file (a release scores_<split>.json or a plain mapping)."""
     d = json.load(open(path))
     return d.get("models", d)

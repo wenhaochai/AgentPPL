@@ -134,21 +134,21 @@ def report(a):
             continue
         names = sorted({n for _, s in rows for n in s["picks"]}, key=lambda n: (n != DEFAULT_PICKS, n))
         print(f"\n== {sp} ({len(rows)} models)")
-        print("\t".join(["model", "plain_ppl"] + names + (["R", "N"] if scores else [])))
+        print("\t".join(["model", "plain_ppl"] + names + (["TB2.1"] if scores else [])))
         for m, s in sorted(rows):
             cells = [m, f"{s['plain_ppl']:.4f}"] + [f"{s['picks'][n]['agenticppl']:.4f}" if n in s["picks"] else "-" for n in names]
             if scores:
                 sc = scores.get(m, {})
-                cells += ["-" if sc.get(k) is None else f"{sc[k]:.3f}" for k in ("R", "N")]
+                cells += ["-" if sc.get("R") is None else f"{sc['R']:.3f}"]
             print("\t".join(cells))
         if not scores:
             continue
         cols = [("-plain_ppl", {m: -s["plain_ppl"] for m, s in rows})] + \
                [(n, {m: s["picks"][n]["agenticppl"] for m, s in rows if n in s["picks"]}) for n in names]
-        print("\nSpearman rho\tR (n)\tN (n)")
+        print("\nSpearman rho with TB2.1 (n)")
         for label, v in cols:
             cells = [label]
-            for k in ("R", "N"):
+            for k in ("R",):
                 ms = [m for m in v if scores.get(m, {}).get(k) is not None and np.isfinite(v[m])]
                 cells.append(f"{spearman([v[m] for m in ms], [scores[m][k] for m in ms]):+.3f} ({len(ms)})" if len(ms) >= 3 else f"- ({len(ms)})")
             print("\t".join(cells))

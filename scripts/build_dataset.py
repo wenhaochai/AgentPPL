@@ -165,8 +165,8 @@ def dev_scores(src):
     repo = {r[0]: dict(zip(hdr, r))["hf_repo"] for r in rows[1:]}
     dev = json.load(open(os.path.join(src, "pumpkin/tokppl/data/scores.json")))["real"]["dev"]
     return {"benchmark": "Terminal-Bench 2.1 (Artificial Analysis; Terminus 2, 89 tasks, 3 runs each)",
-            "keys": {"R": "reasoning mode (highest effort)", "N": "non-reasoning mode; a model with one AA score has it as both R and N"},
-            "split": "dev", "models": {repo[s]: {"R": v.get("R"), "N": v.get("N")} for s, v in sorted(dev.items())}}
+            "keys": {"R": "the model's Terminal-Bench 2.1 score: reasoning mode at the highest effort, or AA's single score for a model with one mode"},
+            "split": "dev", "models": {repo[s]: {"R": v.get("R")} for s, v in sorted(dev.items())}}
 
 
 def main():
