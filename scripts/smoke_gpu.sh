@@ -6,7 +6,8 @@
 #SBATCH --mem=400G
 #SBATCH -o /scratch/gpfs/KARTHIKN/wc9403/project/AgentPPL/logs/slurm/%x-%j.out
 #FETCHABLE
-# GPU smoke test of `agentppl score` (owner approved 2026-11-24): 8 dev models side by side, one per GPU, split dev;
+# The record of the GPU smoke test on the Della cluster (its paths and queue are that cluster's). GPU smoke test of
+# `agentppl score` (2026-11-24): 8 dev models side by side, one per GPU, split dev;
 # then scripts/smoke_compare.py checks plain PPL and AgentPPL against the harness (acceptance: |diff| <= 1e-3).
 # Submit: /scratch/gpfs/KARTHIKN/wc9403/tools/wq/wq submit --prio 20 scripts/smoke_gpu.sh
 set -uo pipefail

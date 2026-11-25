@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 from agentppl.data import default_dir, load_scores, pick_sets, trajectories  # noqa: E402
 from agentppl.measure import agentppl_of, gather, plain_ppl, read_jsonl, same_spans, spearman, token_bytes  # noqa: E402
 
-SRC = os.environ.get("AGENTPPL_SRC", "/scratch/gpfs/KARTHIKN/wc9403/project/token-ppl")
+SRC = os.environ.get("AGENTPPL_SRC", "")   # the research repo (token-ppl) with the harness dumps; tests skip without it
 DEFAULT = ["qwen3-5-4b", "gemma-4-12b", "k2-horizon-7b", "ministral-3-8b", "granite-4-2-3b"]
 TOL = {"plain_ppl": 1e-6}   # relative; 1e-9 for the rest
 ROOT = {"dev": "tb", "heldout": "tb2"}
