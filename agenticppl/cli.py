@@ -4,8 +4,10 @@ agenticppl report RESULT.json ... [--scores FILE]
 score: renders every trajectory of the split with the model's chat template, runs one vLLM forward pass (prompt
 log-probs only, no generation), and writes {model, splits: {split: {n_docs, picks_name, agenticppl, n_ranges, plain_ppl,
 picks: {name: {agenticppl, combine, n_ranges}}}}} as JSON; agenticppl and n_ranges are the default pick set's.
-report: a table of results, and with --scores the Spearman rho of AgenticPPL and of minus plain
-PPL against the scores (R and N).
+report: a table of results, and with --scores the Spearman rho of each measure itself (plain PPL and every pick set)
+against the scores (R). capped_bits sets and plain PPL are bits (lower is better: negative rho = the right order);
+prob_mean sets are probabilities (higher is better: positive rho = the right order). Files written before 0.2.0 carry
+capped_bits with a minus sign; report flips them so that old and new files mix.
 """
 import argparse, json, math, os, sys, time
 
@@ -125,8 +127,33 @@ def score(a):
 
 # ---------------------------------------------------------------------------------------------- report
 
+POSITIVE_BITS = (0, 2, 0)   # the first version that writes capped_bits as positive bits (lower is better)
+
+
+def version_tuple(v):
+    try:
+        return tuple(int(x) for x in str(v).split(".")[:3])
+    except ValueError:
+        return (0,)
+
+
+def upgrade(r):
+    """A result JSON in the current convention: files older than 0.2.0 (or without a version) carry minus capped bits;
+    flip the sign of every capped_bits pick value and of the split's agenticppl when its default set is capped_bits."""
+    if version_tuple(r.get("agenticppl_version", "0")) >= POSITIVE_BITS:
+        return r
+    for s in r.get("splits", {}).values():
+        for p in s.get("picks", {}).values():
+            if p.get("combine") == "capped_bits" and p.get("agenticppl") is not None:
+                p["agenticppl"] = -p["agenticppl"]
+        first = s.get("picks", {}).get(s.get("picks_name"), {})
+        if first.get("combine") == "capped_bits" and s.get("agenticppl") is not None:
+            s["agenticppl"] = -s["agenticppl"]
+    return r
+
+
 def report(a):
-    res = [json.load(open(p)) for p in a.results]
+    res = [upgrade(json.load(open(p))) for p in a.results]
     scores = load_scores(a.scores) if a.scores else None
     for sp in SPLITS:
         rows = [(r["model"], r["splits"][sp]) for r in res if sp in r.get("splits", {})]
@@ -143,9 +170,11 @@ def report(a):
             print("\t".join(cells))
         if not scores:
             continue
-        cols = [("-plain_ppl", {m: -s["plain_ppl"] for m, s in rows})] + \
-               [(n, {m: s["picks"][n]["agenticppl"] for m, s in rows if n in s["picks"]}) for n in names]
-        print("\nSpearman rho with TB2.1 (n)")
+        cols = [("plain_ppl (bits/byte)", {m: s["plain_ppl"] for m, s in rows})] + \
+               [(f"{n} ({next(s['picks'][n]['combine'] for _, s in rows if n in s['picks'])})",
+                 {m: s["picks"][n]["agenticppl"] for m, s in rows if n in s["picks"]}) for n in names]
+        print("\nSpearman rho with TB2.1 (n). plain_ppl and capped_bits sets are bits: lower bits should rank higher, "
+              "so negative rho means the right order. prob_mean sets: positive rho means the right order.")
         for label, v in cols:
             cells = [label]
             for k in ("R",):

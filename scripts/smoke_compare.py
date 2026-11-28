@@ -12,6 +12,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tests"))
 import test_dev_values as T  # noqa: E402
+from agenticppl.cli import upgrade  # noqa: E402
 from agenticppl.data import default_dir, pick_sets, trajectories  # noqa: E402
 
 TOL = 1e-3
@@ -21,13 +22,13 @@ def main():
     paths = sys.argv[1:]
     repos = T.panel_repos()
     slug = {v: k for k, v in repos.items()}
-    exp = T.expected("dev")
     data = default_dir()
     docs = [d for d in trajectories(data) if d["split"] == "dev"]
     sets = pick_sets(data)
+    exp = T.expected("dev", sets)
     worst, bad, rows = 0.0, 0, []
     for p in paths:
-        r = json.load(open(p))
+        r = upgrade(json.load(open(p)))   # files before 0.2.0 carry minus capped bits
         s = slug[r["model"]]
         got = r["splits"]["dev"]
         for name, v in got["picks"].items():

@@ -21,7 +21,8 @@ Fixed public agent trajectories and precomputed byte ranges for **AgenticPPL**, 
 Terminal-Bench 2.1 rank from one forward pass. Code: <https://github.com/wenhaochai/AgenticPPL>.
 
 On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgenticPPL ranks the models with
-Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50. A model's score is
+Spearman rho −0.79 against their TB2.1 scores, where plain perplexity on the same text gets +0.50. Both are bits (lower
+is better), so negative rho means the right order. A model's score is
 its Artificial Analysis TB2.1 score in reasoning mode at the highest effort, or AA's single score when the model has one
 mode (`R` in `scores_dev.json`).
 
@@ -45,9 +46,9 @@ huggingface-cli download wchai/AgenticPPL --repo-type dataset --local-dir releas
 AGENTICPPL_DATA=release agenticppl score --model Qwen/Qwen3.5-4B --split heldout
 ```
 
-AgenticPPL (default) is minus the mean over the picked ranges of the model's bits on each range, with each token's bits
-capped at 2 and each range's sum capped at 2. The ranges were picked with Flint's per-token losses: they are command
-tokens the agent reads off the earlier terminal output.
+AgenticPPL (default) is the mean over the picked ranges of the model's capped bits on each range: each token's bits
+capped at 2 and each range's sum capped at 2. Lower is better. The ranges were picked with Flint's per-token losses:
+they are command tokens the agent reads off the earlier terminal output.
 
 ## Sources and licences
 

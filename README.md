@@ -4,7 +4,8 @@ AgenticPPL predicts how an LLM ranks on Terminal-Bench 2.1 from one forward pass
 It needs only the scored model: no generation, no sandbox, no judge.
 
 On 960 trajectories of new tasks and 15 open instruct models that the search never saw, AgenticPPL ranks the models with
-Spearman rho +0.79 against their TB2.1 scores, where plain perplexity on the same text gets −0.50.
+Spearman rho −0.79 against their TB2.1 scores, where plain perplexity on the same text gets +0.50. Both are bits (lower
+is better), so negative rho means the right order.
 
 Dataset: <https://huggingface.co/datasets/wchai/AgenticPPL>
 
@@ -22,37 +23,38 @@ Dataset: <https://huggingface.co/datasets/wchai/AgenticPPL>
    of turn 1 or later that Flint predicts much better when it can see the earlier terminal output (loss drop > 0.5
    bits) and that Flint finds easy in full context (< 4 bits): text the agent reads off the screen. The ranges are
    mapped to any model's rendering by (span, offset in span), because every rendering holds the same span texts.
-4. **AgenticPPL** of a model is minus the mean, over the picked ranges, of the model's bits on each range, with each
+4. **AgenticPPL** of a model is the mean over the picked ranges of the model's capped bits on each range: each
    token's bits capped at 2 and each range's sum capped at 2. With the cap, one confidently wrong token costs at most
-   2 bits. Higher AgenticPPL = higher predicted TB2.1 rank.
+   2 bits. Lower is better: lower AgenticPPL = higher predicted TB2.1 rank.
 5. **Plain PPL**, for comparison: bits per byte over all tokens of the model's rendering.
 
 ## Results
 
-Spearman rho of each measure with Terminal-Bench 2.1, one score per model; positive means the measure orders the
-models the right way. A model's score is its Artificial Analysis TB2.1 score in reasoning mode at the highest effort,
+rho of each measure with TB2.1; both are bits (lower is better), so negative rho means the measure orders models the
+right way. A model's score is its Artificial Analysis TB2.1 score in reasoning mode at the highest effort,
 or AA's single score when the model has one mode.
 
 | measure | dev trajectories × 25 dev models | held-out trajectories × 25 dev models | held-out trajectories × 15 held-out models |
 |---|---|---|---|
-| **AgenticPPL** (`obsgain-easy`, default) | +0.890 | +0.854 | **+0.788** |
-| plain PPL (minus bits per byte) | −0.29 | −0.288 | −0.495 |
+| **AgenticPPL** (`obsgain-easy`, default) | −0.890 | −0.854 | **−0.788** |
+| plain PPL, bits per byte | +0.29 | +0.288 | +0.495 |
 
 - The held-out models are 15 open instruct models of 21-37B total parameters. The 25 dev models are 2-14B and 59-128B,
   so the held-out band is new to the search, and its narrow size range leaves model size little of the ranking to
   explain. Held-out model names, scores and per-model values are not released.
-- On held-out trajectories × held-out models, AgenticPPL minus plain PPL is +1.28 in rho (paired bootstrap over the
-  models, 10,000 draws, 95% interval [+0.57, +1.79]).
+- On held-out trajectories × held-out models, the AgenticPPL rho is 1.28 further toward the right order than the plain
+  PPL rho (paired bootstrap over the models, 10,000 draws, 95% interval [0.57, 1.79]).
 - **How the default was chosen.** Three agent search runs each froze their best program on dev. All three were
   measured once, pre-registered, on both held-out cells. `obsgain-easy` (run 05dc517c, program 1152f4c8) was chosen
-  as the default after that test. The other two got rho +0.695 (`obsgain-nothought`) and +0.683 (`obsgain-taskgain`,
-  with its own top-20 rank combine) on held-out trajectories × held-out models. So the +0.788 is the best of three on
-  that cell, not a fresh draw.
+  as the default after that test. The other two (higher is better) got rho +0.695 (`obsgain-nothought`) and +0.683
+  (`obsgain-taskgain`, with its own top-20 rank combine) on held-out trajectories × held-out models. So the −0.788 is
+  the best of three on that cell, not a fresh draw.
 - The dev numbers are optimistic: the agents that wrote the pick rules saw the dev rho of the 25 dev models on the dev
   trajectories.
 
 Extra pick sets (in the release, scored with the probability mean: the arithmetic mean over ranges of 2^-bits, bits
-scaled by range bytes / covering-token bytes):
+scaled by range bytes / covering-token bytes; a probability, so higher is better and positive rho is the right
+order):
 
 | set | dev × dev | held-out traj. × dev models |
 |---|---|---|
@@ -76,9 +78,9 @@ agenticppl report *.json --scores release/scores_dev.json
 
 ```json
 {"model": "Qwen/Qwen3.5-4B",
- "splits": {"heldout": {"n_docs": 960, "picks_name": "obsgain-easy", "agenticppl": -0.7755, "n_ranges": 10568,
+ "splits": {"heldout": {"n_docs": 960, "picks_name": "obsgain-easy", "agenticppl": 0.7755, "n_ranges": 10568,
                         "plain_ppl": 1.5233,
-                        "picks": {"obsgain-easy": {"agenticppl": -0.7755, "combine": "capped_bits", "n_ranges": 10568},
+                        "picks": {"obsgain-easy": {"agenticppl": 0.7755, "combine": "capped_bits", "n_ranges": 10568},
                                   "obsgain-nothought": {"agenticppl": 0.5850, "combine": "prob_mean", "n_ranges": 28123}}}},
  "docs_with_special_tokens_in_content": 0, "docs_unmatched": 0}
 ```
@@ -90,9 +92,12 @@ agenticppl report *.json --scores release/scores_dev.json
 - One pass is about 9.3 M tokens (dev) or 6.2 M tokens (held-out) for a typical tokenizer.
 - Chat templates: thinking is turned off (`enable_thinking=False`) when the template reads it. A template that needs a
   reasoning field gets an empty one. A template that prints the date gets 2025-08-05.
-- `report` prints a table of results and, with `--scores`, the Spearman rho of each measure (minus plain PPL) against
-  the score. A scores file is `{"models": {model: {"R": x}}}`, keyed by the `--model` string used in `score`; `R` is the
-  score described under Results.
+- `report` prints a table of results and, with `--scores`, the Spearman rho of each measure itself against the score.
+  Lower bits should rank higher, so for AgenticPPL and plain PPL negative rho means the right order; for the
+  probability-mean sets positive rho does. Result files written before 0.2.0 carry AgenticPPL with a minus sign;
+  `report` reads `agenticppl_version` and flips them, so old and new files mix. A scores file is
+  `{"models": {model: {"R": x}}}`, keyed by the `--model` string used in `score`; `R` is the score described under
+  Results.
 
 ## Trajectories
 

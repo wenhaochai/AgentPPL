@@ -7,12 +7,13 @@ is mapped to a model's rendering by (non-markup span, offset in it). A range out
 
 Rows of a range: the model's tokens that start inside the span holding the range and overlap the range.
 
-Combines (each pick set names its own; higher = predicted higher TB2.1; ranges with no scored row are left out, as a
-doc's first token has no loss):
-  capped_bits  (the default set's) minus the mean over ranges of min(2, sum over the range's rows of min(2, bits)):
-               a confidently wrong token costs at most 2 bits.
+Combines (each pick set names its own; ranges with no scored row are left out, as a doc's first token has no loss):
+  capped_bits  (the default set's) the mean over ranges of min(2, sum over the range's rows of min(2, bits)): a
+               confidently wrong token costs at most 2 bits. Bits, so LOWER = predicted higher TB2.1. Before 0.2.0
+               this value carried a minus sign (higher = better); `agenticppl report` flips files older than 0.2.0.
   prob_mean    the arithmetic mean over ranges of the probability 2^-bits, bits = (sum of the rows' bits) * (range
-               bytes / the rows' bytes), so a token that sticks out of the range counts only for its share.
+               bytes / the rows' bytes), so a token that sticks out of the range counts only for its share. A
+               probability, so HIGHER = predicted higher TB2.1.
 
 Plain PPL: bits per byte over all tokens of the model's rendering (template markup included), tokens with a loss only.
 Lower = lower loss.
@@ -87,13 +88,14 @@ CAP = 2.0
 
 
 def capped_bits(bits, rid, n):
-    """Minus the mean over ranges of min(CAP, sum of min(CAP, row bits)). Returns (value, ranges with a scored row)."""
+    """The mean over ranges of min(CAP, sum of min(CAP, row bits)), in bits (lower is better).
+    Returns (value, ranges with a scored row)."""
     ok = ~np.isnan(bits)
     has = np.bincount(rid[ok], minlength=n) > 0
     if not has.any():
         return float("nan"), 0
     tot = np.bincount(rid[ok], weights=np.minimum(np.asarray(bits, np.float64)[ok], CAP), minlength=n)
-    return -float(np.minimum(tot[has], CAP).mean()), int(has.sum())
+    return float(np.minimum(tot[has], CAP).mean()), int(has.sum())
 
 
 def agenticppl(bits, nbytes, rid, range_bytes):

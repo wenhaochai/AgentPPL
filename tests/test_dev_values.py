@@ -3,7 +3,9 @@
 For each model and split: the toolkit renders every release trajectory of the split with the model's chat template
 and tokenizes it; the text and spans must equal the harness's rendering and the token byte offsets must equal the
 dump's. Then the toolkit maps each pick set onto the model's tokens and combines the dump's bits. Each value must
-equal the harness's to 1e-9 (plain PPL to 1e-6):
+equal the harness's to 1e-9 (plain PPL to 1e-6). The harness wrote capped_bits with a minus sign (higher = better);
+the toolkit (0.2.0 on) writes positive bits (lower = better), so a capped_bits set is checked against minus the
+harness value. ":native" values are the harness programs' own output and keep the harness sign.
   split dev (1,401 trajectories; results/tb_top20full, results/v2_dev/best3_values.json)
     obsgain-easy (1152f4c8, capped_bits)     = best3 [1]       obsgain-nothought (466edc35, prob_mean) = best3 [0]
     each program's own combine.py on the toolkit's rows = best3 [0], [1], [2]
@@ -12,7 +14,7 @@ equal the harness's to 1e-9 (plain PPL to 1e-6):
     pumpkin/tokppl2/store/real/heldout_dev/out/values.json: dev models only)
     the same, with the programs 05dc517c, f2f139bd, c684eadc and minus plain_ppl of that file
 --dumps-only: every dev model with a dump, the harness's renderings in place of the tokenizer; also prints the
-Spearman rho of every pick set and of minus plain PPL with the dev scores.
+Spearman rho of every measure itself with the dev scores (bits: negative = the right order; prob_mean: positive).
 
   AGENTICPPL_SRC=/path/to/token-ppl python tests/test_dev_values.py [--split dev|heldout] [--models a,b] [--dumps-only]
   pytest tests/   (dev on the default models with their tokenizers, held-out from the dumps; skipped without the repo)
@@ -96,16 +98,19 @@ def dumps_dir(split):
     return os.path.join(SRC, f"results/{ROOT[split]}_top20full/tokens")
 
 
-def expected(split):
-    """slug -> {measure: the harness's value}."""
+def expected(split, sets):
+    """slug -> {measure: the harness's value, in the toolkit's sign}."""
+    def toolkit_sign(e):   # the harness's capped_bits values are minus bits; the toolkit's are bits
+        for n in ("obsgain-easy", "obsgain-nothought"):
+            e[n] = -e[n + ":native"] if sets[n]["combine"] == "capped_bits" and e[n + ":native"] is not None else e[n + ":native"]
+        return e
     if split == "dev":
         best3 = json.load(open(os.path.join(SRC, "results/v2_dev/best3_values.json")))
         def exp(slug):
             e = {"plain_ppl": json.load(open(os.path.join(dumps_dir(split), slug + ".json")))["bpb_all"]}
             for n, i in BEST3.items():
                 e[n + ":native"] = best3[i]["values"].get(slug)
-            e["obsgain-easy"], e["obsgain-nothought"] = e["obsgain-easy:native"], e["obsgain-nothought:native"]
-            return e
+            return toolkit_sign(e)
         return exp
     v = json.load(open(os.path.join(SRC, "pumpkin/tokppl2/store/real/heldout_dev/out/values.json")))
     assert v["cell"] == "dev"
@@ -113,8 +118,7 @@ def expected(split):
         e = {"plain_ppl": -v["plain_ppl"][slug]}
         for n, run in RUN.items():
             e[n + ":native"] = v["programs"][run]["values"].get(slug)
-        e["obsgain-easy"], e["obsgain-nothought"] = e["obsgain-easy:native"], e["obsgain-nothought:native"]
-        return e
+        return toolkit_sign(e)
     return exp
 
 
@@ -174,7 +178,7 @@ def run(models, split, use_tokenizer):
     data = default_dir()
     docs = [d for d in trajectories(data) if d["split"] == split]
     sets = pick_sets(data)
-    exp, repos = expected(split), panel_repos()
+    exp, repos = expected(split, sets), panel_repos()
     allv, nfail = {}, 0
     for m in models:
         v, f = check_model(m, repos[m], split, docs, sets, exp, use_tokenizer)
@@ -196,14 +200,12 @@ def main():
         models = [m for m in a.models.split(",") if m]
     allv, nfail, repos, data = run(models, a.split, not a.dumps_only)
     if a.dumps_only:
-        print(f"\n{a.split} trajectories x dev models: Spearman rho (n)\tR\tN")
+        print(f"\n{a.split} trajectories x dev models: Spearman rho (n) with R. plain_ppl and capped_bits sets are bits "
+              "(negative = the right order); prob_mean sets and the harness's :native capped_bits (minus bits) are "
+              "higher-is-better (positive = the right order)")
+        ms = [m for m in models if dev_scores[repos[m]].get("R") is not None]
         for k in ["plain_ppl"] + [k for k in next(iter(allv.values())) if k != "plain_ppl"]:
-            sign = -1.0 if k == "plain_ppl" else 1.0
-            cells = []
-            for t in ("R", "N"):
-                ms = [m for m in models if dev_scores[repos[m]].get(t) is not None]
-                cells.append(f"{spearman([sign * allv[m][k] for m in ms], [dev_scores[repos[m]][t] for m in ms]):+.4f} ({len(ms)})")
-            print(("-" if sign < 0 else "") + k, *cells, sep="\t")
+            print(k, f"{spearman([allv[m][k] for m in ms], [dev_scores[repos[m]]['R'] for m in ms]):+.4f} ({len(ms)})", sep="\t")
     print(f"\n{a.split}: {len(models)} models, {nfail} failures")
     sys.exit(1 if nfail else 0)
 
